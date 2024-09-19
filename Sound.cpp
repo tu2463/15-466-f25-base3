@@ -44,7 +44,7 @@ Sound::Sample::Sample(std::string const &filename) {
 	} else if (filename.size() >= 5 && filename.substr(filename.size()-5) == ".opus") {
 		load_opus(filename, &data);
 	} else {
-		throw std::runtime_error("Sample '" + filename + "' doesn't end in either \".png\" or \".opus\" -- unsure how to load.");
+		throw std::runtime_error("Sample '" + filename + "' doesn't end in either \".wav\" or \".opus\" -- unsure how to load.");
 	}
 }
 
