@@ -18,7 +18,7 @@ namespace {
 	constexpr uint32_t const MIX_SAMPLES = 1024; //number of samples to mix per call of mix_audio callback; n.b. SDL requires this to be a power of two
 
 	//The audio device:
-	SDL_AudioDeviceID device = 0;
+	SDL_AudioStream *stream = nullptr;
 
 	//list of all currently playing samples:
 	std::list< std::shared_ptr< Sound::PlayingSample > > playing_samples;
@@ -34,7 +34,7 @@ Sound::Ramp< float > Sound::volume = Sound::Ramp< float >(1.0f);
 Sound::Listener Sound::listener;
 
 //This audio-mixing callback is defined below:
-void mix_audio(void *, Uint8 *buffer_, int len);
+void mix_audio(void *, SDL_AudioStream *stream, int additional_amount, int total_amount);
 
 //------------------------ public-facing --------------------------------
 
@@ -54,49 +54,41 @@ Sound::Sample::Sample(std::vector< float > const &data_) : data(data_) {
 
 
 void Sound::init() {
-	if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+	if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
 		std::cerr << "Failed to initialize SDL audio subsytem:\n" << SDL_GetError() << std::endl;
 		std::cerr << "  (Will continue without audio.)\n" << std::endl;
 		return;
 	}
 
 	//Based on the example on https://wiki.libsdl.org/SDL_OpenAudioDevice
-	SDL_AudioSpec want, have;
-	SDL_zero(want);
-	want.freq = AUDIO_RATE;
-	want.format = AUDIO_F32SYS;
-	want.channels = 2;
-	want.samples = MIX_SAMPLES;
-	want.callback = mix_audio;
-
-	device = SDL_OpenAudioDevice(nullptr, 0, &want, &have, 0);
-	if (device == 0) {
+	SDL_AudioSpec spec{ .format=SDL_AUDIO_F32, .channels=2, .freq=AUDIO_RATE };
+	stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, mix_audio, nullptr);
+	if (stream == nullptr) {
 		std::cerr << "Failed to open audio device:\n" << SDL_GetError() << std::endl;
 		std::cerr << "  (Will continue without audio.)\n" << std::endl;
 	} else {
 		//start audio playback:
-		SDL_PauseAudioDevice(device, 0);
+		SDL_ResumeAudioStreamDevice(stream);
 		std::cout << "Audio output initialized." << std::endl;
 	}
 }
 
 
 void Sound::shutdown() {
-	if (device != 0) {
+	if (stream != nullptr) {
 		//stop audio playback:
-		SDL_PauseAudioDevice(device, 1);
-		SDL_CloseAudioDevice(device);
-		device = 0;
+		SDL_DestroyAudioStream(stream);
+		stream = nullptr;
 	}
 }
 
 
 void Sound::lock() {
-	if (device) SDL_LockAudioDevice(device);
+	if (stream) SDL_LockAudioStream(stream);
 }
 
 void Sound::unlock() {
-	if (device) SDL_UnlockAudioDevice(device);
+	if (stream) SDL_UnlockAudioStream(stream);
 }
 
 std::shared_ptr< Sound::PlayingSample > Sound::play(Sample const &sample, float play_volume, float pan) {
@@ -311,14 +303,17 @@ void step_direction_ramp(Sound::Ramp< glm::vec3 > &ramp) {
 
 
 //The audio callback -- invoked by SDL when it needs more sound to play:
-void mix_audio(void *, Uint8 *buffer_, int len) {
-	assert(buffer_); //should always have some audio buffer
-
+void SDLCALL mix_audio(void *, SDL_AudioStream *stream, int additional_amount, int total_amount) {
 	struct LR {
 		float l;
 		float r;
 	};
 	static_assert(sizeof(LR) == 8, "Sample is packed");
+
+	//adapted from older code using https://github.com/libsdl-org/SDL/blob/main/docs/README-migration.md
+	int len = MIX_SAMPLES * sizeof(LR);
+	Uint8 *buffer_ = SDL_stack_alloc(Uint8, len); //this is not actually responsive to the amount of samples requested, it just mixes in blocks of MIX_SAMPLES
+
 	assert(len == MIX_SAMPLES * sizeof(LR)); //should always have the expected number of samples
 	LR *buffer = reinterpret_cast< LR * >(buffer_);
 
@@ -433,6 +428,8 @@ void mix_audio(void *, Uint8 *buffer_, int len) {
 	std::cout << "Max Power: " << std::sqrt(max_power) << "; playing samples: " << playing_samples.size() << std::endl; //DEBUG
 	*/
 
+	SDL_PutAudioStreamData(stream, buffer_, len);
+	SDL_stack_free(buffer_);
 }
 
 

@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 
 	//create window:
-	SDL_Window *window = SDL_CreateWindow(
+	Mode::window = SDL_CreateWindow(
 		"gp25 game3: require sound", //TODO: remember to set a title for your game!
 		1280, 720, //TODO: modify window size if you'd like
 		SDL_WINDOW_OPENGL
