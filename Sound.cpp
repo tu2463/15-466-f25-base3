@@ -2,7 +2,7 @@
 #include "load_wav.hpp"
 #include "load_opus.hpp"
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #include <list>
 #include <cassert>
