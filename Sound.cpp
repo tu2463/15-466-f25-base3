@@ -15,7 +15,6 @@ namespace {
 
 	//handy constants:
 	constexpr uint32_t const AUDIO_RATE = 48000; //sampling rate
-	constexpr uint32_t const MIX_SAMPLES = 1024; //number of samples to mix per call of mix_audio callback; n.b. SDL requires this to be a power of two
 
 	//The audio device:
 	SDL_AudioStream *stream = nullptr;
@@ -244,33 +243,32 @@ void compute_pan_from_listener_and_position(
 }
 
 //helper: ramp updates...
-constexpr float const RAMP_STEP = float(MIX_SAMPLES) / float(AUDIO_RATE);
 
 //helper: ...for single values:
-void step_value_ramp(Sound::Ramp< float > &ramp) {
-	if (ramp.ramp < RAMP_STEP) {
+void step_value_ramp(float step, Sound::Ramp< float > &ramp) {
+	if (ramp.ramp < step) {
 		ramp.value = ramp.target;
 		ramp.ramp = 0.0f;
 	} else {
-		ramp.value += (RAMP_STEP / ramp.ramp) * (ramp.target - ramp.value);
-		ramp.ramp -= RAMP_STEP;
+		ramp.value += (step / ramp.ramp) * (ramp.target - ramp.value);
+		ramp.ramp -= step;
 	}
 }
 
 //helper: ...for 3D positions:
-void step_position_ramp(Sound::Ramp< glm::vec3 > &ramp) {
-	if (ramp.ramp < RAMP_STEP) {
+void step_position_ramp(float step, Sound::Ramp< glm::vec3 > &ramp) {
+	if (ramp.ramp < step) {
 		ramp.value = ramp.target;
 		ramp.ramp = 0.0f;
 	} else {
-		ramp.value = glm::mix(ramp.value, ramp.target, RAMP_STEP / ramp.ramp);
-		ramp.ramp -= RAMP_STEP;
+		ramp.value = glm::mix(ramp.value, ramp.target, step / ramp.ramp);
+		ramp.ramp -= step;
 	}
 }
 
 //helper: ...for 3D directions:
-void step_direction_ramp(Sound::Ramp< glm::vec3 > &ramp) {
-	if (ramp.ramp < RAMP_STEP) {
+void step_direction_ramp(float step, Sound::Ramp< glm::vec3 > &ramp) {
+	if (ramp.ramp < step) {
 		ramp.value = ramp.target;
 		ramp.ramp = 0.0f;
 	} else {
@@ -294,31 +292,34 @@ void step_direction_ramp(Sound::Ramp< glm::vec3 > &ramp) {
 		float angle = std::acos(glm::clamp(glm::dot(ramp.value, ramp.target), -1.0f, 1.0f));
 
 		//figure out new target value by moving angle toward target:
-		angle *= (ramp.ramp - RAMP_STEP) / ramp.ramp;
+		angle *= (ramp.ramp - step) / ramp.ramp;
 
 		ramp.value = ramp.target * std::cos(angle) + perp * std::sin(angle);
-		ramp.ramp -= RAMP_STEP;
+		ramp.ramp -= step;
 	}
 }
 
 
 //The audio callback -- invoked by SDL when it needs more sound to play:
 void SDLCALL mix_audio(void *, SDL_AudioStream *stream, int additional_amount, int total_amount) {
+	if (total_amount <= 0) return;
+
 	struct LR {
 		float l;
 		float r;
 	};
 	static_assert(sizeof(LR) == 8, "Sample is packed");
 
+	uint32_t samples = uint32_t(total_amount) / sizeof(LR);
+
 	//adapted from older code using https://github.com/libsdl-org/SDL/blob/main/docs/README-migration.md
-	int len = MIX_SAMPLES * sizeof(LR);
+	int len = samples * sizeof(LR);
 	Uint8 *buffer_ = SDL_stack_alloc(Uint8, len); //this is not actually responsive to the amount of samples requested, it just mixes in blocks of MIX_SAMPLES
 
-	assert(len == MIX_SAMPLES * sizeof(LR)); //should always have the expected number of samples
 	LR *buffer = reinterpret_cast< LR * >(buffer_);
 
 	//zero the output buffer:
-	for (uint32_t s = 0; s < MIX_SAMPLES; ++s) {
+	for (uint32_t s = 0; s < samples; ++s) {
 		buffer[s].l = 0.0f;
 		buffer[s].r = 0.0f;
 	}
@@ -328,9 +329,11 @@ void SDLCALL mix_audio(void *, SDL_AudioStream *stream, int additional_amount, i
 	glm::vec3 start_position =  Sound::listener.position.value;
 	glm::vec3 start_right =  Sound::listener.right.value;
 
-	step_value_ramp(Sound::volume);
-	step_position_ramp( Sound::listener.position);
-	step_direction_ramp( Sound::listener.right);
+	const float elapsed = samples / float(AUDIO_RATE);
+
+	step_value_ramp(elapsed, Sound::volume);
+	step_position_ramp(elapsed, Sound::listener.position);
+	step_direction_ramp(elapsed, Sound::listener.right);
 
 	float end_volume = Sound::volume.value;
 	glm::vec3 end_position =  Sound::listener.position.value;
@@ -350,18 +353,18 @@ void SDLCALL mix_audio(void *, SDL_AudioStream *stream, int additional_amount, i
 				playing_sample.half_volume_radius.value,
 				&start_pan.l, &start_pan.r);
 
-			step_position_ramp(playing_sample.position);
-			step_value_ramp(playing_sample.half_volume_radius);
+			step_position_ramp(elapsed, playing_sample.position);
+			step_value_ramp(elapsed, playing_sample.half_volume_radius);
 		} else {
 			//2D panning
 			compute_pan_weights(playing_sample.pan.value, &start_pan.l, &start_pan.r);
 
-			step_value_ramp(playing_sample.pan);
+			step_value_ramp(elapsed, playing_sample.pan);
 		}
 		start_pan.l *= start_volume * playing_sample.volume.value;
 		start_pan.r *= start_volume * playing_sample.volume.value;
 
-		step_value_ramp(playing_sample.volume);
+		step_value_ramp(elapsed, playing_sample.volume);
 
 		//..and end of the mix period:
 		LR end_pan;
@@ -383,12 +386,12 @@ void SDLCALL mix_audio(void *, SDL_AudioStream *stream, int additional_amount, i
 		//figure out a step to add at each sample so that pan will move smoothly from start to end:
 		LR pan = start_pan;
 		LR pan_step;
-		pan_step.l = (end_pan.l - start_pan.l) / MIX_SAMPLES;
-		pan_step.r = (end_pan.r - start_pan.r) / MIX_SAMPLES;
+		pan_step.l = (end_pan.l - start_pan.l) / samples;
+		pan_step.r = (end_pan.r - start_pan.r) / samples;
 
 		assert(playing_sample.i < playing_sample.data.size());
 
-		for (uint32_t i = 0; i < MIX_SAMPLES; ++i) {
+		for (uint32_t i = 0; i < samples; ++i) {
 			//mix one sample based on current pan values:
 			buffer[i].l += pan.l * playing_sample.data[playing_sample.i];
 			buffer[i].r += pan.r * playing_sample.data[playing_sample.i];
