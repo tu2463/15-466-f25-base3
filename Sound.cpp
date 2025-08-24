@@ -301,8 +301,9 @@ void step_direction_ramp(float step, Sound::Ramp< glm::vec3 > &ramp) {
 
 
 //The audio callback -- invoked by SDL when it needs more sound to play:
-void SDLCALL mix_audio(void *, SDL_AudioStream *stream, int additional_amount, int total_amount) {
+void SDLCALL mix_audio(void *, SDL_AudioStream *stream_, int additional_amount, int total_amount) {
 	if (total_amount <= 0) return;
+	assert(stream_ == stream && "callback should only be used with our main stream");
 
 	struct LR {
 		float l;
