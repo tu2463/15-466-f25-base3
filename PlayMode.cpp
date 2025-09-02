@@ -172,7 +172,7 @@ void PlayMode::update(float elapsed) {
 		//make it so that moving diagonally doesn't go faster:
 		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
 
-		glm::mat4x3 frame = camera->transform->make_local_to_parent();
+		glm::mat4x3 frame = camera->transform->make_parent_from_local();
 		glm::vec3 frame_right = frame[0];
 		//glm::vec3 up = frame[1];
 		glm::vec3 frame_forward = -frame[2];
@@ -181,7 +181,7 @@ void PlayMode::update(float elapsed) {
 	}
 
 	{ //update listener to camera position:
-		glm::mat4x3 frame = camera->transform->make_local_to_parent();
+		glm::mat4x3 frame = camera->transform->make_parent_from_local();
 		glm::vec3 frame_right = frame[0];
 		glm::vec3 frame_at = frame[3];
 		Sound::listener.set_position_right(frame_at, frame_right, 1.0f / 60.0f);
@@ -241,5 +241,5 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 
 glm::vec3 PlayMode::get_leg_tip_position() {
 	//the vertex position here was read from the model in blender:
-	return lower_leg->make_local_to_world() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
+	return lower_leg->make_world_from_local() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
 }

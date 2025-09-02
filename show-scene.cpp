@@ -69,12 +69,15 @@ int main(int argc, char **argv) {
 	init_GL();
 
 	//Set VSYNC + Late Swap (prevents crazy FPS):
-	if (SDL_GL_SetSwapInterval(-1) != 0) {
+	if (!SDL_GL_SetSwapInterval(-1)) {
 		std::cerr << "NOTE: couldn't set vsync + late swap tearing (" << SDL_GetError() << ")." << std::endl;
-		if (SDL_GL_SetSwapInterval(1) != 0) {
+		if (!SDL_GL_SetSwapInterval(1)) {
 			std::cerr << "NOTE: couldn't set vsync (" << SDL_GetError() << ")." << std::endl;
 		}
 	}
+
+	//Set automatic SRGB encoding if framebuffer needs it:
+	glEnable(GL_FRAMEBUFFER_SRGB);
 
 	//------------ load resources --------------
 	call_load_functions();
