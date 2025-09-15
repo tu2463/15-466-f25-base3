@@ -1,4 +1,4 @@
-W3L1
+# W3L1
 
 Sonund.cpp
 
@@ -10,3 +10,8 @@ use load template to load
 honk_sample: press space to honk
 
 leg_tip_loop
+
+# Game 3
+/Applications/Blender.app/Contents/MacOS/Blender -y --background --python scenes/export-meshes.py -- scenes/parrot.blend:Main dist/parrot.pnct
+/Applications/Blender.app/Contents/MacOS/Blender -y --background --python scenes/export-scene.py -- scenes/parrot.blend:Main dist/parrot.scene
+node Maekfile.js && dist/game  

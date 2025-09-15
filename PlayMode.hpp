@@ -2,6 +2,7 @@
 
 #include "Scene.hpp"
 #include "Sound.hpp"
+#include "Fan.hpp"
 
 #include <glm/glm.hpp>
 
@@ -17,7 +18,12 @@ struct PlayMode : Mode {
 	virtual void update(float elapsed) override;
 	virtual void draw(glm::uvec2 const &drawable_size) override;
 
-	//----- game state -----
+	// --- helpers for click + audio ---
+	bool click_hits_fan(glm::vec2 mouse_px, glm::uvec2 wnd, Fan const& fan) const;
+	glm::vec3 fan_world_position(Fan const& fan) const;
+	Sound::Sample const *get_sample_for(std::string const &key); // loads/caches "<key>.wav"
+
+	// --- game state ---
 
 	//input tracking:
 	struct Button {
@@ -28,19 +34,31 @@ struct PlayMode : Mode {
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
-	//hexapod leg to wobble:
-	Scene::Transform *hip = nullptr;
-	Scene::Transform *upper_leg = nullptr;
-	Scene::Transform *lower_leg = nullptr;
-	glm::quat hip_base_rotation;
-	glm::quat upper_leg_base_rotation;
-	glm::quat lower_leg_base_rotation;
-	float wobble = 0.0f;
+	// --- Scene & meshes ---
+	Scene::Transform *Parrot = nullptr;
+	Scene::Transform *FMM = nullptr;
 
-	glm::vec3 get_leg_tip_position();
+	Fan fan_FMM;
+	glm::vec3 fan_base_position = glm::vec3(0.0f, -5.0f, 0.0f);
 
+	// --- audio sample cache ---
+	std::unordered_map<std::string, std::unique_ptr<Sound::Sample>> sample_cache;
+
+
+	// //hexapod leg to wobble:
+	// Scene::Transform *hip = nullptr;
+	// Scene::Transform *upper_leg = nullptr;
+	// Scene::Transform *lower_leg = nullptr;
+	// glm::quat hip_base_rotation;
+	// glm::quat upper_leg_base_rotation;
+	// glm::quat lower_leg_base_rotation;
+	// float wobble = 0.0f;
+
+	// glm::vec3 get_leg_tip_position();
+
+	std::shared_ptr< Sound::PlayingSample > bg_loop;
 	//music coming from the tip of the leg (as a demonstration):
-	std::shared_ptr< Sound::PlayingSample > leg_tip_loop;
+	// std::shared_ptr< Sound::PlayingSample > leg_tip_loop;
 
 	//car honk sound:
 	std::shared_ptr< Sound::PlayingSample > honk_oneshot;
