@@ -16,27 +16,54 @@
 #include <cmath>
 #include <unordered_map>
 
+static char to_char_gender(Fan::Gender g)
+{
+	switch (g)
+	{
+	case Fan::Gender::F:
+		return 'F';
+	case Fan::Gender::M:
+		return 'M';
+	default:
+		return 'N';
+	}
+}
+static char to_char_pitch(Fan::Pitch p)
+{
+	switch (p)
+	{
+	case Fan::Pitch::L:
+		return 'L';
+	case Fan::Pitch::M:
+		return 'M';
+	default:
+		return 'H';
+	}
+}
+static char to_char_speed(Fan::Speed s)
+{
+	switch (s)
+	{
+	case Fan::Speed::L:
+		return 'L';
+	case Fan::Speed::M:
+		return 'M';
+	default:
+		return 'H';
+	}
+}
+std::string PlayMode::current_quality_from_ui() const
+{
+	std::string q;
+	q.push_back(to_char_gender(ui.gender));
+	q.push_back(to_char_pitch(ui.pitch));
+	q.push_back(to_char_speed(ui.speed));
+	return q; // e.g., "FMM"
+}
+
 namespace
 {
-	struct RectNDC
-	{
-		float x0, y0, x1, y1;
-	};
-
-	// Listen button rect in DrawLines' NDC space: x ∈ [-aspect, +aspect], y ∈ [-1, +1]
-	// Placed on the left / lower side; sized using the same text height H used below.
-	static RectNDC listen_rect_ndc(float aspect)
-	{
-		constexpr float H = 0.09f; // text height for the left panel
-		RectNDC r;
-		r.x0 = -aspect + 0.8f * H;
-		r.x1 = -aspect + 5.0f * H; // a wide-ish button box
-		r.y0 = -1.0f + 0.6f * H;
-		r.y1 = -1.0f + 1.8f * H;
-		return r;
-	}
-
-	// Convert pixel → NDC used by DrawLines overlay (so clicks match what we draw)
+	// Keep your existing convert function:
 	static glm::vec2 mouse_px_to_ndc(glm::vec2 mouse_px, glm::uvec2 wnd)
 	{
 		float aspect = float(wnd.x) / float(wnd.y);
@@ -72,8 +99,8 @@ Load<Scene> parrot_scene(LoadTagDefault, []() -> Scene const *
 // 	return new Sound::Sample(data_path("dusty-floor.opus"));
 // });
 
-Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
-								{ return new Sound::Sample(data_path("honk.wav")); });
+// Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
+// 								{ return new Sound::Sample(data_path("honk.wav")); });
 
 PlayMode::PlayMode() : scene(*parrot_scene)
 {
@@ -98,7 +125,7 @@ PlayMode::PlayMode() : scene(*parrot_scene)
 	fan_FMM.gender = Fan::Gender::F;
 	fan_FMM.pitch = Fan::Pitch::M;
 	fan_FMM.speed = Fan::Speed::M;
-	fan_FMM.voice = "Aria"; // so file_key() == "FMM_1"
+	fan_FMM.voice = "Aria";
 	fan_FMM.transform = FMM;
 
 	// start music loop playing:
@@ -117,33 +144,110 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 	{
 		glm::vec2 mouse_px(evt.button.x, evt.button.y);
-		printf("mouse down @ %f,%f\n", mouse_px.x, mouse_px.y);
+		printf("mouse down @ %f,%f \n", mouse_px.x, mouse_px.y);
 
-		// Only handle left button:
 		if (evt.button.button == SDL_BUTTON_LEFT)
 		{
-
-			// Convert to overlay NDC and test against our button rect:
 			float aspect = float(window_size.x) / float(window_size.y);
 			glm::vec2 ndc = mouse_px_to_ndc(mouse_px, window_size);
-			RectNDC R = listen_rect_ndc(aspect);
+			printf(" -> ndc %f,%f\n", ndc.x, ndc.y);
+			auto lay = VoiceUI::make_layout(aspect);
 
-			bool inside =
-				(ndc.x >= R.x0 && ndc.x <= R.x1 &&
-				 ndc.y >= R.y0 && ndc.y <= R.y1);
+			// radios reflect current state before we process clicks:
+			VoiceUI::sync_from_state(ui, lay);
 
-			printf("Listen btn hit-test: ndc=(%f,%f) rect=[%f,%f]-[%f,%f] inside=%d\n",
-				   ndc.x, ndc.y, R.x0, R.y0, R.x1, R.y1, int(inside));
-
-			if (inside)
+			// gender
 			{
-				// Play current fan's voice at their world position:
-				std::string key = fan_FMM.file_key(); // e.g., "FMM_1" or "FMM_Aria"
-				printf("Listen clicked -> playing key='%s'\n", key.c_str());
+				char newv = 0;
+				if (lay.gender.click(ndc, &newv))
+				{
+					if (newv == 'F')
+					{
+						ui.gender = Fan::Gender::F;
+						printf("UI: gender -> F\n");
+					}
+					else if (newv == 'M')
+					{
+						ui.gender = Fan::Gender::M;
+						printf("UI: gender -> M\n");
+					}
+					else
+					{
+						ui.gender = Fan::Gender::N;
+						printf("UI: gender -> (none)\n");
+					}
+					return true;
+				}
+			}
+			// pitch
+			{
+				char newv = 0;
+				if (lay.pitch.click(ndc, &newv))
+				{
+					if (newv == 'L')
+					{
+						ui.pitch = Fan::Pitch::L;
+						printf("UI: pitch -> L\n");
+					}
+					if (newv == 'M')
+					{
+						ui.pitch = Fan::Pitch::M;
+						printf("UI: pitch -> M\n");
+					}
+					if (newv == 'H')
+					{
+						ui.pitch = Fan::Pitch::H;
+						printf("UI: pitch -> H\n");
+					}
+					return true;
+				}
+			}
+			// speed
+			{
+				char newv = 0;
+				if (lay.speed.click(ndc, &newv))
+				{
+					if (newv == 'L')
+					{
+						ui.speed = Fan::Speed::L;
+						printf("UI: speed -> L\n");
+					}
+					if (newv == 'M')
+					{
+						ui.speed = Fan::Speed::M;
+						printf("UI: speed -> M\n");
+					}
+					if (newv == 'H')
+					{
+						ui.speed = Fan::Speed::H;
+						printf("UI: speed -> H\n");
+					}
+					return true;
+				}
+			}
 
-				auto *samp = get_sample_for(key); // loads "<key>.wav" (or .opus if you change get_sample_for)
+			// speak
+			if (lay.speak.hit(ndc))
+			{
+				std::string q = current_quality_from_ui(); // e.g., "FMM"
+				std::string key = q + "_" + fan_FMM.voice; // e.g., "FMM_Aria"
+				printf("Speak clicked -> quality='%s' voice='%s' key='%s'\n",
+					   q.c_str(), fan_FMM.voice.c_str(), key.c_str());
+				auto *samp = get_sample_for(key);
+				glm::mat4x3 pxf = Parrot->make_world_from_local();
+				glm::vec3 parrot_pos = pxf[3];
+				Sound::play_3D(*samp, 1.0f, parrot_pos, 3.0f);
+				return true;
+			}
+
+			// listen
+			if (lay.listen.hit(ndc))
+			{
+				std::string key = fan_FMM.file_key(); // "FMM_Aria"
+				printf("Listen clicked -> playing key='%s'\n", key.c_str());
+				auto *samp = get_sample_for(key);
 				glm::vec3 pos = fan_world_position(fan_FMM);
-				Sound::play_3D(*samp, 1.0f, pos, 3.0f); // keep your 3D spatial
+				Sound::play_3D(*samp, 1.0f, pos, 3.0f);
 				return true;
 			}
 		}
@@ -174,35 +278,6 @@ void PlayMode::update(float elapsed)
 
 	// //move sound to follow leg tip position:
 	// leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
-
-	// //move camera:
-	// {
-
-	// 	//combine inputs into a move:
-	// 	constexpr float PlayerSpeed = 30.0f;
-	// 	glm::vec2 move = glm::vec2(0.0f);
-	// 	if (left.pressed && !right.pressed) move.x =-1.0f;
-	// 	if (!left.pressed && right.pressed) move.x = 1.0f;
-	// 	if (down.pressed && !up.pressed) move.y =-1.0f;
-	// 	if (!down.pressed && up.pressed) move.y = 1.0f;
-
-	// 	//make it so that moving diagonally doesn't go faster:
-	// 	if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
-
-	// 	glm::mat4x3 frame = camera->transform->make_parent_from_local();
-	// 	glm::vec3 frame_right = frame[0];
-	// 	//glm::vec3 up = frame[1];
-	// 	glm::vec3 frame_forward = -frame[2];
-
-	// 	camera->transform->position += move.x * frame_right + move.y * frame_forward;
-	// }
-
-	// { //update listener to camera position:
-	// 	glm::mat4x3 frame = camera->transform->make_parent_from_local();
-	// 	glm::vec3 frame_right = frame[0];
-	// 	glm::vec3 frame_at = frame[3];
-	// 	Sound::listener.set_position_right(frame_at, frame_right, 1.0f / 60.0f);
-	// }
 
 	// reset button press counters:
 	left.downs = 0;
@@ -239,90 +314,65 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		0.0f, 1.0f, 0.0f, 0.0f,
 		0.0f, 0.0f, 1.0f, 0.0f,
 		0.0f, 0.0f, 0.0f, 1.0f));
+	
+	auto lay = VoiceUI::make_layout(aspect);
 
-	{ // use DrawLines to overlay some text:
-		auto box = [](bool on)
-		{ return on ? "[x]" : "[ ]"; };
-		auto radio = [](bool on)
-		{ return on ? "(x)" : "( )"; };
-
-		constexpr float H = 0.07f;		// text height
-		float x0 = +aspect - 15.0f * H; // right side panel start
-		float y = +1.0f - 1.2f * H;		// top row
+	// ---- top-right labels for Gender / Pitch / Speed ----
+	{
+		const float H = VoiceUI::UI_H();
+		const float x0 = VoiceUI::get_x0(aspect);
+		const float y_gender = VoiceUI::row_y(0);
+		const float y_pitch = VoiceUI::row_y(1);
+		const float y_speed = VoiceUI::row_y(2);
 
 		glm::vec3 X(H, 0.0f, 0.0f), Y(0.0f, H, 0.0f);
-		auto draw = [&](std::string const &t)
+		glm::u8vec4 shadow(0x00, 0x00, 0x00, 0xff), mainc(0xff, 0xff, 0xff, 0xff);
+		auto draw_label = [&](std::string const &s, float x, float y)
 		{
-			// shadow
-			lines.draw_text(t, glm::vec3(x0, y, 0.0f), X, Y, glm::u8vec4(0x00, 0x00, 0x00, 0xff));
-			// main
 			float ofs = 2.0f / drawable_size.y;
-			lines.draw_text(t, glm::vec3(x0 + ofs, y + ofs, 0.0f), X, Y, glm::u8vec4(0xff, 0xff, 0xff, 0xff));
-			y -= 1.2f * H;
+			lines.draw_text(s, glm::vec3(x, y, 0.0f), X, Y, shadow);
+			lines.draw_text(s, glm::vec3(x + ofs, y + ofs, 0.0f), X, Y, mainc);
 		};
 
-		// Line 1: Gender (square check boxes)
-		draw(
-			"Gender:  F " + std::string(box(ui.gender == Fan::Gender::F)) +
-			"   M " + std::string(box(ui.gender == Fan::Gender::M)));
+		// Row headers:
+		draw_label("Gender:", x0, y_gender);
+		draw_label("Pitch:", x0, y_pitch);
+		draw_label("Speed:", x0, y_speed);
 
-		// Line 2: Pitch (circle radio)
-		draw(
-			"Pitch:   Low " + std::string(radio(ui.pitch == Fan::Pitch::L)) +
-			"  Mid " + std::string(radio(ui.pitch == Fan::Pitch::M)) +
-			"  High " + std::string(radio(ui.pitch == Fan::Pitch::H)));
+		// Option labels placed just to the left of each radio circle:
+		// Gender F/M:
+		draw_label("F:", lay.gender.items[0].center.x - 2.0f * H, y_gender);
+		draw_label("M:", lay.gender.items[1].center.x - 2.0f * H, y_gender);
 
-		// Line 3: Speed (circle radio)
-		draw(
-			"Speed:   Low " + std::string(radio(ui.speed == Fan::Speed::L)) +
-			"  Mid " + std::string(radio(ui.speed == Fan::Speed::M)) +
-			"  High " + std::string(radio(ui.speed == Fan::Speed::H)));
+		// Pitch L/M/H:
+		draw_label("L:", lay.pitch.items[0].center.x - 2.0f * H, y_pitch);
+		draw_label("M:", lay.pitch.items[1].center.x - 2.0f * H, y_pitch);
+		draw_label("H:", lay.pitch.items[2].center.x - 2.0f * H, y_pitch);
 
-		// 	DrawLines lines(glm::mat4(
-		// 		1.0f / aspect, 0.0f, 0.0f, 0.0f,
-		// 		0.0f, 1.0f, 0.0f, 0.0f,
-		// 		0.0f, 0.0f, 1.0f, 0.0f,
-		// 		0.0f, 0.0f, 0.0f, 1.0f
-		// 	));
-
-		// 	constexpr float H = 0.09f;
-		// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-		// 		glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-		// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-		// 		glm::u8vec4(0x00, 0x00, 0x00, 0x00));
-		// 	float ofs = 2.0f / drawable_size.y;
-		// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-		// 		glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
-		// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-		// 		glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+		// Speed L/M/H:
+		draw_label("L:", lay.speed.items[0].center.x - 2.0f * H, y_speed);
+		draw_label("M:", lay.speed.items[1].center.x - 2.0f * H, y_speed);
+		draw_label("H:", lay.speed.items[2].center.x - 2.0f * H, y_speed);
 	}
 
-	// ---- Left / lower "Listen" button ----
 	{
-		constexpr float H = 0.09f;
+		// reflect current UI state into radio groups:
+		lay.gender.set_selected((ui.gender == Fan::Gender::F) ? 'F' : (ui.gender == Fan::Gender::M) ? 'M'
+																									: '\0');
+		lay.pitch.set_selected((ui.pitch == Fan::Pitch::L) ? 'L' : (ui.pitch == Fan::Pitch::M) ? 'M'
+																							   : 'H');
+		lay.speed.set_selected((ui.speed == Fan::Speed::L) ? 'L' : (ui.speed == Fan::Speed::M) ? 'M'
+																							   : 'H');
 
-		// Button rect in NDC:
-		RectNDC R = listen_rect_ndc(aspect);
+		lay.gender.draw(lines, drawable_size);
+		lay.pitch.draw(lines, drawable_size);
+		lay.speed.draw(lines, drawable_size);
 
-		glm::vec3 X(H, 0.0f, 0.0f), Y(0.0f, H, 0.0f);
+		// draw Speak button:
+		lay.speak.draw(lines, drawable_size);
 
-		// Button label near the rect's left/top with a bit of padding:
-		float pad = 0.15f * H;
-		glm::vec3 label_pos(R.x0 + pad, R.y0 + 0.45f * (R.y1 - R.y0), 0.0f);
-
-		// Shadow
-		lines.draw_text("[ Listen ]", label_pos, X, Y, glm::u8vec4(0x00, 0x00, 0x00, 0xff));
-		// Main
-		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("[ Listen ]",
-						label_pos + glm::vec3(ofs, ofs, 0.0f),
-						X, Y, glm::u8vec4(0xff, 0xff, 0xff, 0xff));
-
-		glm::u8vec4 border(0xff, 0xff, 0xff, 0x66);
-		lines.draw(glm::vec3(R.x0, R.y0, 0.0f), glm::vec3(R.x1, R.y0, 0.0f), border);
-		lines.draw(glm::vec3(R.x1, R.y0, 0.0f), glm::vec3(R.x1, R.y1, 0.0f), border);
-		lines.draw(glm::vec3(R.x1, R.y1, 0.0f), glm::vec3(R.x0, R.y1, 0.0f), border);
-		lines.draw(glm::vec3(R.x0, R.y1, 0.0f), glm::vec3(R.x0, R.y0, 0.0f), border);
+		// left/lower Listen button:
+		lay.listen.draw(lines, drawable_size);
 	}
 
 	GL_ERRORS();
@@ -338,42 +388,6 @@ glm::vec3 PlayMode::fan_world_position(Fan const &fan) const
 	// world position of the transform's origin:
 	glm::mat4x3 xf = fan.transform->make_world_from_local();
 	return xf[3];
-}
-
-bool PlayMode::click_hits_fan(glm::vec2 mouse_px, glm::uvec2 wnd, Fan const &fan) const
-{
-	// Build a camera ray from the pixel
-	float aspect = float(wnd.x) / float(wnd.y);
-	float tan_half = std::tan(0.5f * camera->fovy);
-
-	float nx = (mouse_px.x / float(wnd.x)) * 2.0f - 1.0f;
-	float ny = 1.0f - (mouse_px.y / float(wnd.y)) * 2.0f;
-
-	glm::vec3 dir_cam = glm::normalize(glm::vec3(nx * aspect * tan_half, ny * tan_half, -1.0f));
-
-	// *** Use WORLD transform, not parent: ***
-	glm::mat4x3 cframe = camera->transform->make_world_from_local();
-	glm::vec3 right = cframe[0];
-	glm::vec3 up = cframe[1];
-	glm::vec3 forward = -cframe[2]; // camera looks along -Z in camera-local
-	glm::vec3 origin = cframe[3];
-
-	glm::vec3 dir = glm::normalize(dir_cam.x * right + dir_cam.y * up + dir_cam.z * forward);
-
-	glm::vec3 fan_pos = fan_world_position(fan);
-	glm::vec3 to = fan_pos - origin;
-
-	// front/behind test:
-	float t = glm::dot(to, dir);
-	printf("click t=%f\n", t);
-	if (t <= 0.0f)
-		return false; // behind (or exactly at) camera along this ray
-
-	// closest approach to the sphere:
-	glm::vec3 closest = origin + t * dir;
-	float d = glm::length(closest - fan_pos);
-	printf("click d=%f (radius=%f)\n", d, fan.click_radius);
-	return d <= fan.click_radius;
 }
 
 Sound::Sample const *PlayMode::get_sample_for(std::string const &key)

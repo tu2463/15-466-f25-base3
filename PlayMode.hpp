@@ -3,6 +3,7 @@
 #include "Scene.hpp"
 #include "Sound.hpp"
 #include "Fan.hpp"
+#include "VoiceUI.hpp"
 
 #include <glm/glm.hpp>
 
@@ -19,9 +20,12 @@ struct PlayMode : Mode {
 	virtual void draw(glm::uvec2 const &drawable_size) override;
 
 	// --- helpers for click + audio ---
-	bool click_hits_fan(glm::vec2 mouse_px, glm::uvec2 wnd, Fan const& fan) const;
+	VoiceUI::State ui;
+
 	glm::vec3 fan_world_position(Fan const& fan) const;
 	Sound::Sample const *get_sample_for(std::string const &key); // loads/caches "<key>.wav"
+
+	std::string current_quality_from_ui() const;
 
 	// --- game state ---
 
