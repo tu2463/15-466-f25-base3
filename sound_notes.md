@@ -15,3 +15,7 @@ leg_tip_loop
 /Applications/Blender.app/Contents/MacOS/Blender -y --background --python scenes/export-meshes.py -- scenes/parrot.blend:Main dist/parrot.pnct
 /Applications/Blender.app/Contents/MacOS/Blender -y --background --python scenes/export-scene.py -- scenes/parrot.blend:Main dist/parrot.scene
 node Maekfile.js && dist/game  
+
+
+lines:
+Hi! Nice to meet you!

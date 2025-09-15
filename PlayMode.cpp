@@ -233,10 +233,55 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				std::string key = q + "_" + fan_FMM.voice; // e.g., "FMM_Aria"
 				printf("Speak clicked -> quality='%s' voice='%s' key='%s'\n",
 					   q.c_str(), fan_FMM.voice.c_str(), key.c_str());
+
+				// play imitation from the Parrot:
 				auto *samp = get_sample_for(key);
 				glm::mat4x3 pxf = Parrot->make_world_from_local();
 				glm::vec3 parrot_pos = pxf[3];
 				Sound::play_3D(*samp, 1.0f, parrot_pos, 3.0f);
+
+				// --- scoring: +100 for each matching category ---
+				int gained = 0;
+
+				// print letters so you can see the comparison at a glance:
+				char g_ui = to_char_gender(ui.gender);
+				char p_ui = to_char_pitch(ui.pitch);
+				char s_ui = to_char_speed(ui.speed);
+				char g_fan = to_char_gender(fan_FMM.gender);
+				char p_fan = to_char_pitch(fan_FMM.pitch);
+				char s_fan = to_char_speed(fan_FMM.speed);
+
+				if (ui.gender == fan_FMM.gender)
+				{
+					gained += 100;
+					printf("  match: gender (%c==%c)\n", g_ui, g_fan);
+				}
+				else
+				{
+					printf("  no match: gender (%c!=%c)\n", g_ui, g_fan);
+				}
+				if (ui.pitch == fan_FMM.pitch)
+				{
+					gained += 100;
+					printf("  match: pitch  (%c==%c)\n", p_ui, p_fan);
+				}
+				else
+				{
+					printf("  no match: pitch  (%c!=%c)\n", p_ui, p_fan);
+				}
+				if (ui.speed == fan_FMM.speed)
+				{
+					gained += 100;
+					printf("  match: speed  (%c==%c)\n", s_ui, s_fan);
+				}
+				else
+				{
+					printf("  no match: speed  (%c!=%c)\n", s_ui, s_fan);
+				}
+
+				score += gained;
+				printf("  gained=%d  total score=%d\n", gained, score);
+
 				return true;
 			}
 
@@ -373,6 +418,22 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 		// left/lower Listen button:
 		lay.listen.draw(lines, drawable_size);
+	}
+
+	{
+		const float H = 0.09f;
+		glm::vec3 X(H,0,0), Y(0,H,0);
+		glm::u8vec4 shadow(0,0,0,0xff), mainc(0xff,0xff,0xff,0xff);
+		float aspect = float(drawable_size.x) / float(drawable_size.y);
+		float x = -aspect + 0.8f * H;
+		float y = +1.0f   - 0.8f * H;
+
+		char buf[64];
+		snprintf(buf, sizeof(buf), "Score: %d", score);
+
+		float ofs = 2.0f / drawable_size.y;
+		lines.draw_text(buf, glm::vec3(x, y, 0.0f), X, Y, shadow);
+		lines.draw_text(buf, glm::vec3(x+ofs, y+ofs, 0.0f), X, Y, mainc);
 	}
 
 	GL_ERRORS();

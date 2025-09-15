@@ -14,6 +14,8 @@ struct PlayMode : Mode {
 	PlayMode();
 	virtual ~PlayMode();
 
+	int score = 0;
+
 	//functions called by main loop:
 	virtual bool handle_event(SDL_Event const &, glm::uvec2 const &window_size) override;
 	virtual void update(float elapsed) override;
@@ -44,6 +46,8 @@ struct PlayMode : Mode {
 
 	Fan fan_FMM;
 	glm::vec3 fan_base_position = glm::vec3(0.0f, -5.0f, 0.0f);
+	glm::vec3 fan_wait_position = glm::vec3(0.0f, -15.0f, 0.0f);
+	glm::vec3 fan_gone_position = glm::vec3(-20.0f, -5.0f, 0.0f);
 
 	// --- audio sample cache ---
 	std::unordered_map<std::string, std::unique_ptr<Sound::Sample>> sample_cache;
