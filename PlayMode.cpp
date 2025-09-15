@@ -5,6 +5,8 @@
 #include "DrawLines.hpp"
 #include "Mesh.hpp"
 #include "Load.hpp"
+#include "VoiceUI.hpp"
+
 #include "gl_errors.hpp"
 #include "data_path.hpp"
 
@@ -180,27 +182,71 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 	scene.draw(*camera);
 
-	// { //use DrawLines to overlay some text:
-	// 	glDisable(GL_DEPTH_TEST);
-	// 	float aspect = float(drawable_size.x) / float(drawable_size.y);
-	// 	DrawLines lines(glm::mat4(
-	// 		1.0f / aspect, 0.0f, 0.0f, 0.0f,
-	// 		0.0f, 1.0f, 0.0f, 0.0f,
-	// 		0.0f, 0.0f, 1.0f, 0.0f,
-	// 		0.0f, 0.0f, 0.0f, 1.0f
-	// 	));
+	{ // use DrawLines to overlay some text:
+		glDisable(GL_DEPTH_TEST);
+		float aspect = float(drawable_size.x) / float(drawable_size.y);
 
-	// 	constexpr float H = 0.09f;
-	// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-	// 		glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-	// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-	// 		glm::u8vec4(0x00, 0x00, 0x00, 0x00));
-	// 	float ofs = 2.0f / drawable_size.y;
-	// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-	// 		glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
-	// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-	// 		glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-	// }
+		DrawLines lines(glm::mat4(
+			1.0f / aspect, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f));
+
+		auto box = [](bool on)
+		{ return on ? "[x]" : "[ ]"; };
+		auto radio = [](bool on)
+		{ return on ? "(•)" : "( )"; };
+
+		constexpr float H = 0.07f;	   // text height
+		float x0 = +aspect - 15.0f * H; // right side panel start
+		float y = +1.0f - 1.2f * H;	   // top row
+
+		glm::vec3 X(H, 0.0f, 0.0f), Y(0.0f, H, 0.0f);
+		auto draw = [&](std::string const &t)
+		{
+			// shadow
+			lines.draw_text(t, glm::vec3(x0, y, 0.0f), X, Y, glm::u8vec4(0x00, 0x00, 0x00, 0xff));
+			// main
+			float ofs = 2.0f / drawable_size.y;
+			lines.draw_text(t, glm::vec3(x0 + ofs, y + ofs, 0.0f), X, Y, glm::u8vec4(0xff, 0xff, 0xff, 0xff));
+			y -= 1.2f * H;
+		};
+
+		// Line 1: Gender (square check boxes)
+		draw(
+			"Gender:  F " + std::string(box(ui.gender == Fan::Gender::F)) +
+			"   M " + std::string(box(ui.gender == Fan::Gender::M)));
+
+		// Line 2: Pitch (circle radio)
+		draw(
+			"Pitch:   Low " + std::string(radio(ui.pitch == Fan::Pitch::L)) +
+			"  Mid " + std::string(radio(ui.pitch == Fan::Pitch::M)) +
+			"  High " + std::string(radio(ui.pitch == Fan::Pitch::H)));
+
+		// Line 3: Speed (circle radio)
+		draw(
+			"Speed:   Low " + std::string(radio(ui.speed == Fan::Speed::L)) +
+			"  Mid " + std::string(radio(ui.speed == Fan::Speed::M)) +
+			"  High " + std::string(radio(ui.speed == Fan::Speed::H)));
+
+		// 	DrawLines lines(glm::mat4(
+		// 		1.0f / aspect, 0.0f, 0.0f, 0.0f,
+		// 		0.0f, 1.0f, 0.0f, 0.0f,
+		// 		0.0f, 0.0f, 1.0f, 0.0f,
+		// 		0.0f, 0.0f, 0.0f, 1.0f
+		// 	));
+
+		// 	constexpr float H = 0.09f;
+		// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		// 		glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
+		// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+		// 		glm::u8vec4(0x00, 0x00, 0x00, 0x00));
+		// 	float ofs = 2.0f / drawable_size.y;
+		// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		// 		glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
+		// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+		// 		glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+	}
 	GL_ERRORS();
 }
 
