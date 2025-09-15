@@ -16,6 +16,36 @@
 #include <cmath>
 #include <unordered_map>
 
+namespace
+{
+	struct RectNDC
+	{
+		float x0, y0, x1, y1;
+	};
+
+	// Listen button rect in DrawLines' NDC space: x ∈ [-aspect, +aspect], y ∈ [-1, +1]
+	// Placed on the left / lower side; sized using the same text height H used below.
+	static RectNDC listen_rect_ndc(float aspect)
+	{
+		constexpr float H = 0.09f; // text height for the left panel
+		RectNDC r;
+		r.x0 = -aspect + 0.8f * H;
+		r.x1 = -aspect + 5.0f * H; // a wide-ish button box
+		r.y0 = -1.0f + 0.6f * H;
+		r.y1 = -1.0f + 1.8f * H;
+		return r;
+	}
+
+	// Convert pixel → NDC used by DrawLines overlay (so clicks match what we draw)
+	static glm::vec2 mouse_px_to_ndc(glm::vec2 mouse_px, glm::uvec2 wnd)
+	{
+		float aspect = float(wnd.x) / float(wnd.y);
+		float x_ndc = -aspect + 2.0f * aspect * (mouse_px.x / float(wnd.x));
+		float y_ndc = +1.0f - 2.0f * (mouse_px.y / float(wnd.y));
+		return glm::vec2(x_ndc, y_ndc);
+	}
+}
+
 GLuint parrot_meshes_for_lit_color_texture_program = 0;
 Load<MeshBuffer> parrot_meshes(LoadTagDefault, []() -> MeshBuffer const *
 							   {
@@ -86,15 +116,36 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 	if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 	{
-		// left-click selects fans when not in relative mode:
 		glm::vec2 mouse_px(evt.button.x, evt.button.y);
 		printf("mouse down @ %f,%f\n", mouse_px.x, mouse_px.y);
-		if (click_hits_fan(mouse_px, window_size, fan_FMM))
+
+		// Only handle left button:
+		if (evt.button.button == SDL_BUTTON_LEFT)
 		{
-			auto *samp = get_sample_for(fan_FMM.file_key()); // "FMM_1.wav"
-			glm::vec3 pos = fan_world_position(fan_FMM);
-			Sound::play_3D(*samp, 1.0f, pos, 3.0f); // half-volume radius ~3 units
-			return true;
+
+			// Convert to overlay NDC and test against our button rect:
+			float aspect = float(window_size.x) / float(window_size.y);
+			glm::vec2 ndc = mouse_px_to_ndc(mouse_px, window_size);
+			RectNDC R = listen_rect_ndc(aspect);
+
+			bool inside =
+				(ndc.x >= R.x0 && ndc.x <= R.x1 &&
+				 ndc.y >= R.y0 && ndc.y <= R.y1);
+
+			printf("Listen btn hit-test: ndc=(%f,%f) rect=[%f,%f]-[%f,%f] inside=%d\n",
+				   ndc.x, ndc.y, R.x0, R.y0, R.x1, R.y1, int(inside));
+
+			if (inside)
+			{
+				// Play current fan's voice at their world position:
+				std::string key = fan_FMM.file_key(); // e.g., "FMM_1" or "FMM_Aria"
+				printf("Listen clicked -> playing key='%s'\n", key.c_str());
+
+				auto *samp = get_sample_for(key); // loads "<key>.wav" (or .opus if you change get_sample_for)
+				glm::vec3 pos = fan_world_position(fan_FMM);
+				Sound::play_3D(*samp, 1.0f, pos, 3.0f); // keep your 3D spatial
+				return true;
+			}
 		}
 	}
 
@@ -181,25 +232,23 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glDepthFunc(GL_LESS); // this is the default depth comparison function, but FYI you can change it.
 
 	scene.draw(*camera);
+	glDisable(GL_DEPTH_TEST);
+	float aspect = float(drawable_size.x) / float(drawable_size.y);
+	DrawLines lines(glm::mat4(
+		1.0f / aspect, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f));
 
 	{ // use DrawLines to overlay some text:
-		glDisable(GL_DEPTH_TEST);
-		float aspect = float(drawable_size.x) / float(drawable_size.y);
-
-		DrawLines lines(glm::mat4(
-			1.0f / aspect, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f));
-
 		auto box = [](bool on)
 		{ return on ? "[x]" : "[ ]"; };
 		auto radio = [](bool on)
-		{ return on ? "(•)" : "( )"; };
+		{ return on ? "(x)" : "( )"; };
 
-		constexpr float H = 0.07f;	   // text height
+		constexpr float H = 0.07f;		// text height
 		float x0 = +aspect - 15.0f * H; // right side panel start
-		float y = +1.0f - 1.2f * H;	   // top row
+		float y = +1.0f - 1.2f * H;		// top row
 
 		glm::vec3 X(H, 0.0f, 0.0f), Y(0.0f, H, 0.0f);
 		auto draw = [&](std::string const &t)
@@ -247,6 +296,35 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 		// 		glm::u8vec4(0xff, 0xff, 0xff, 0x00));
 	}
+
+	// ---- Left / lower "Listen" button ----
+	{
+		constexpr float H = 0.09f;
+
+		// Button rect in NDC:
+		RectNDC R = listen_rect_ndc(aspect);
+
+		glm::vec3 X(H, 0.0f, 0.0f), Y(0.0f, H, 0.0f);
+
+		// Button label near the rect's left/top with a bit of padding:
+		float pad = 0.15f * H;
+		glm::vec3 label_pos(R.x0 + pad, R.y0 + 0.45f * (R.y1 - R.y0), 0.0f);
+
+		// Shadow
+		lines.draw_text("[ Listen ]", label_pos, X, Y, glm::u8vec4(0x00, 0x00, 0x00, 0xff));
+		// Main
+		float ofs = 2.0f / drawable_size.y;
+		lines.draw_text("[ Listen ]",
+						label_pos + glm::vec3(ofs, ofs, 0.0f),
+						X, Y, glm::u8vec4(0xff, 0xff, 0xff, 0xff));
+
+		glm::u8vec4 border(0xff, 0xff, 0xff, 0x66);
+		lines.draw(glm::vec3(R.x0, R.y0, 0.0f), glm::vec3(R.x1, R.y0, 0.0f), border);
+		lines.draw(glm::vec3(R.x1, R.y0, 0.0f), glm::vec3(R.x1, R.y1, 0.0f), border);
+		lines.draw(glm::vec3(R.x1, R.y1, 0.0f), glm::vec3(R.x0, R.y1, 0.0f), border);
+		lines.draw(glm::vec3(R.x0, R.y1, 0.0f), glm::vec3(R.x0, R.y0, 0.0f), border);
+	}
+
 	GL_ERRORS();
 }
 
