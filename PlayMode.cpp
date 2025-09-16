@@ -15,6 +15,19 @@
 #include <random>
 #include <cmath>
 #include <unordered_map>
+#include <cmath>
+
+namespace {
+    static bool move_towards(Scene::Transform *t, glm::vec3 target, float speed, float dt) {
+        if (!t) return true;
+        glm::vec3 d = target - t->position;       // local-space move
+        float dist2 = glm::dot(d, d);
+        float step = speed * dt;
+        if (dist2 <= step*step) { t->position = target; return true; }
+        t->position += (d / std::sqrt(dist2)) * step;
+        return false;
+    }
+}
 
 static char to_char_gender(Fan::Gender g)
 {
@@ -110,11 +123,15 @@ PlayMode::PlayMode() : scene(*parrot_scene)
 			Parrot = &transform;
 		else if (transform.name == "FMM")
 			FMM = &transform;
+		else if (transform.name == "MML")
+			MML = &transform;
 	}
 	if (Parrot == nullptr)
 		throw std::runtime_error("Parrot not found.");
 	if (FMM == nullptr)
 		throw std::runtime_error("FMM not found.");
+	if (MML == nullptr)
+		throw std::runtime_error("MML not found.");
 
 	// get pointer to camera for convenience:
 	if (scene.cameras.size() != 1)
@@ -127,6 +144,25 @@ PlayMode::PlayMode() : scene(*parrot_scene)
 	fan_FMM.speed = Fan::Speed::M;
 	fan_FMM.voice = "Aria";
 	fan_FMM.transform = FMM;
+
+	// base / wait / gone positions (local space)
+	// fan_base_pos = FMM->position;
+	if (MML)
+		MML->position = fan_wait_pos; // park next fan in the queue
+
+	// next fan (MML)
+	if (MML)
+	{
+		fan_MML.name = "MML";
+		fan_MML.gender = Fan::Gender::M;
+		fan_MML.pitch = Fan::Pitch::M;
+		fan_MML.speed = Fan::Speed::L;
+		fan_MML.voice = "Andrew";
+		fan_MML.transform = MML;
+	}
+
+	current_fan = &fan_FMM;
+	next_fan    = (MML ? &fan_MML : nullptr);
 
 	// start music loop playing:
 	//  (note: position will be over-ridden in update())
@@ -282,6 +318,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				score += gained;
 				printf("  gained=%d  total score=%d\n", gained, score);
 
+				// after scoring, start 1s wait then swap FMM->gone and MML->base:
+				if (next_fan && swap_phase == SwapPhase::Idle)
+				{
+					swap_phase = SwapPhase::Wait;
+					swap_timer = 1.5f;
+					printf("Swap: waiting %.2fs before moving fans\n", swap_timer);
+				}
+
 				return true;
 			}
 
@@ -303,6 +347,43 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	// --- swap state machine ---
+    if (swap_phase == SwapPhase::Wait) {
+        swap_timer -= elapsed;
+        if (swap_timer <= 0.0f) {
+            swap_phase = SwapPhase::Moving;
+            printf("Swap: start moving %s -> gone and %s -> base\n",
+                current_fan ? current_fan->name.c_str() : "(none)",
+                next_fan    ? next_fan->name.c_str()    : "(none)");
+        }
+    } else if (swap_phase == SwapPhase::Moving) {
+        bool a_done = true, b_done = true;
+
+        // move previous/current to gone:
+        if (current_fan && current_fan->transform) {
+            a_done = move_towards(current_fan->transform, fan_gone_pos, move_speed, elapsed);
+        }
+        // move next to base:
+        if (next_fan && next_fan->transform) {
+            b_done = move_towards(next_fan->transform, fan_base_pos, move_speed, elapsed);
+        }
+
+        if (a_done && b_done) {
+            // switch current/next
+            current_fan = next_fan;
+
+            // after movement, autoplay the new fan's voice from their world position:
+            if (current_fan) {
+                std::string key = current_fan->file_key(); // e.g., "MML_Andrew"
+                printf("Swap: movement done. Autoplay '%s'\n", key.c_str());
+                auto *samp = get_sample_for(key);
+                glm::vec3 pos = fan_world_position(*current_fan);
+                Sound::play_3D(*samp, 1.0f, pos, 3.0f);
+            }
+
+            swap_phase = SwapPhase::Idle; // ready for whatever's next
+        }
+    }
 
 	// //slowly rotates through [0,1):
 	// wobble += elapsed / 10.0f;

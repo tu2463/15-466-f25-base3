@@ -45,9 +45,19 @@ struct PlayMode : Mode {
 	Scene::Transform *FMM = nullptr;
 
 	Fan fan_FMM;
-	glm::vec3 fan_base_position = glm::vec3(0.0f, -5.0f, 0.0f);
-	glm::vec3 fan_wait_position = glm::vec3(0.0f, -15.0f, 0.0f);
-	glm::vec3 fan_gone_position = glm::vec3(-20.0f, -5.0f, 0.0f);
+	Fan fan_MML;
+	Fan *current_fan = nullptr;
+	Fan *next_fan = nullptr;
+
+	glm::vec3 fan_base_pos = glm::vec3(0.0f, -5.0f, 0.0f);         // where the “current” fan stands
+	glm::vec3 fan_wait_pos = glm::vec3(7.0f, -15.0f, 0.0f);
+	glm::vec3 fan_gone_pos = glm::vec3(-7.0f, -15.0f, -0.0f);
+
+	enum class SwapPhase { Idle, Wait, Moving };
+	SwapPhase swap_phase = SwapPhase::Idle;
+
+	float swap_timer = 0.0f;      // counts down from 1.0s after Speak
+	float move_speed = 6.0f;      // units / second
 
 	// --- audio sample cache ---
 	std::unordered_map<std::string, std::unique_ptr<Sound::Sample>> sample_cache;
@@ -74,4 +84,6 @@ struct PlayMode : Mode {
 	//camera:
 	Scene::Camera *camera = nullptr;
 
+	// Fan switch animation
+	Scene::Transform *MML = nullptr;
 };
