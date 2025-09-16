@@ -6,7 +6,7 @@ Design: You are a parrot superstar known for your ability to imitate any voice. 
 
 Screen Shot:
 
-![Screen Shot](screenshot.png)
+![Screen Shot](screenshot2.png)
 
 How To Play:
 
