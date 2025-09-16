@@ -60,7 +60,7 @@ namespace UI
         {
             float w = 3.0f * H; // comfy hit box around text-drawn "( )"
             float h = 1.5f * H;
-            printf("value: %c, hit_rect: center=(%f,%f) w=%f h=%f\n", value, center.x, center.y, w, h);
+            // printf("value: %c, hit_rect: center=(%f,%f) w=%f h=%f\n", value, center.x, center.y, w, h);
             return Rect{center.x - 0.5f * w, center.y - 0.5f * h, center.x + 0.5f * w, center.y + 0.5f * h};
         }
 

@@ -18,4 +18,4 @@ node Maekfile.js && dist/game
 
 
 lines:
-Hi! Nice to meet you!
+FMM - Hi! Nice to meet you!

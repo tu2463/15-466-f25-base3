@@ -180,13 +180,13 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 	{
 		glm::vec2 mouse_px(evt.button.x, evt.button.y);
-		printf("mouse down @ %f,%f \n", mouse_px.x, mouse_px.y);
+		// printf("mouse down @ %f,%f \n", mouse_px.x, mouse_px.y);
 
 		if (evt.button.button == SDL_BUTTON_LEFT)
 		{
 			float aspect = float(window_size.x) / float(window_size.y);
 			glm::vec2 ndc = mouse_px_to_ndc(mouse_px, window_size);
-			printf(" -> ndc %f,%f\n", ndc.x, ndc.y);
+			// printf(" -> ndc %f,%f\n", ndc.x, ndc.y);
 			auto lay = VoiceUI::make_layout(aspect);
 
 			// radios reflect current state before we process clicks:
@@ -200,17 +200,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 					if (newv == 'F')
 					{
 						ui.gender = Fan::Gender::F;
-						printf("UI: gender -> F\n");
 					}
 					else if (newv == 'M')
 					{
 						ui.gender = Fan::Gender::M;
-						printf("UI: gender -> M\n");
 					}
 					else
 					{
 						ui.gender = Fan::Gender::N;
-						printf("UI: gender -> (none)\n");
 					}
 					return true;
 				}
@@ -223,17 +220,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 					if (newv == 'L')
 					{
 						ui.pitch = Fan::Pitch::L;
-						printf("UI: pitch -> L\n");
 					}
 					if (newv == 'M')
 					{
 						ui.pitch = Fan::Pitch::M;
-						printf("UI: pitch -> M\n");
 					}
 					if (newv == 'H')
 					{
 						ui.pitch = Fan::Pitch::H;
-						printf("UI: pitch -> H\n");
 					}
 					return true;
 				}
@@ -246,17 +240,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 					if (newv == 'L')
 					{
 						ui.speed = Fan::Speed::L;
-						printf("UI: speed -> L\n");
 					}
 					if (newv == 'M')
 					{
 						ui.speed = Fan::Speed::M;
-						printf("UI: speed -> M\n");
 					}
 					if (newv == 'H')
 					{
 						ui.speed = Fan::Speed::H;
-						printf("UI: speed -> H\n");
 					}
 					return true;
 				}
@@ -265,10 +256,8 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			// speak
 			if (lay.speak.hit(ndc))
 			{
-				std::string q = current_quality_from_ui(); // e.g., "FMM"
-				std::string key = q + "_" + fan_FMM.voice; // e.g., "FMM_Aria"
-				printf("Speak clicked -> quality='%s' voice='%s' key='%s'\n",
-					   q.c_str(), fan_FMM.voice.c_str(), key.c_str());
+				std::string q = current_quality_from_ui();
+				std::string key = q + "_" + current_fan->voice;
 
 				// play imitation from the Parrot:
 				auto *samp = get_sample_for(key);
@@ -283,36 +272,38 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				char g_ui = to_char_gender(ui.gender);
 				char p_ui = to_char_pitch(ui.pitch);
 				char s_ui = to_char_speed(ui.speed);
-				char g_fan = to_char_gender(fan_FMM.gender);
-				char p_fan = to_char_pitch(fan_FMM.pitch);
-				char s_fan = to_char_speed(fan_FMM.speed);
+				char g_fan = to_char_gender(current_fan->gender);
+				char p_fan = to_char_pitch(current_fan->pitch);
+				char s_fan = to_char_speed(current_fan->speed);
 
-				if (ui.gender == fan_FMM.gender)
+				printf("Scoring: UI=%c%c%c  Fan=%c%c%c\n", g_ui, p_ui, s_ui, g_fan, p_fan, s_fan);
+
+				if (ui.gender == current_fan->gender)
 				{
 					gained += 100;
-					printf("  match: gender (%c==%c)\n", g_ui, g_fan);
+					// printf("  match: gender (%c==%c)\n", g_ui, g_fan);
 				}
 				else
 				{
-					printf("  no match: gender (%c!=%c)\n", g_ui, g_fan);
+					// printf("  no match: gender (%c!=%c)\n", g_ui, g_fan);
 				}
-				if (ui.pitch == fan_FMM.pitch)
+				if (ui.pitch == current_fan->pitch)
 				{
 					gained += 100;
-					printf("  match: pitch  (%c==%c)\n", p_ui, p_fan);
+					// printf("  match: pitch  (%c==%c)\n", p_ui, p_fan);
 				}
 				else
 				{
-					printf("  no match: pitch  (%c!=%c)\n", p_ui, p_fan);
+					// printf("  no match: pitch  (%c!=%c)\n", p_ui, p_fan);
 				}
-				if (ui.speed == fan_FMM.speed)
+				if (ui.speed == current_fan->speed)
 				{
 					gained += 100;
-					printf("  match: speed  (%c==%c)\n", s_ui, s_fan);
+					// printf("  match: speed  (%c==%c)\n", s_ui, s_fan);
 				}
 				else
 				{
-					printf("  no match: speed  (%c!=%c)\n", s_ui, s_fan);
+					// printf("  no match: speed  (%c!=%c)\n", s_ui, s_fan);
 				}
 
 				score += gained;
@@ -332,10 +323,10 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			// listen
 			if (lay.listen.hit(ndc))
 			{
-				std::string key = fan_FMM.file_key(); // "FMM_Aria"
+				std::string key = current_fan->file_key(); // "FMM_Aria"
 				printf("Listen clicked -> playing key='%s'\n", key.c_str());
 				auto *samp = get_sample_for(key);
-				glm::vec3 pos = fan_world_position(fan_FMM);
+				glm::vec3 pos = fan_world_position(*current_fan);
 				Sound::play_3D(*samp, 1.0f, pos, 3.0f);
 				return true;
 			}
