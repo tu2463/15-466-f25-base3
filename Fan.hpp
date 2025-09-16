@@ -14,7 +14,6 @@ struct Fan
     {
         F,
         M,
-        N
     };
     enum class Pitch
     {
@@ -35,9 +34,10 @@ struct Fan
     Speed speed = Speed::M;
     std::string voice = ""; // e.g., "Aria"
     Scene::Transform *transform = nullptr;
-    float click_radius = 0.6f; // world-space pick radius
 
-    static char to_char(Gender g) { return (g == Gender::F ? 'F' : (g == Gender::M ? 'M' : 'N')); }
+    // Credit: helpers built with ChatGPT assistance.
+    float click_radius = 0.6f;
+    static char to_char(Gender g) { return (g == Gender::F ? 'F' : 'M'); }
     static char to_char(Pitch p) { return (p == Pitch::L ? 'L' : (p == Pitch::M ? 'M' : 'H')); }
     static char to_char(Speed s) { return (s == Speed::L ? 'L' : (s == Speed::M ? 'M' : 'H')); }
 

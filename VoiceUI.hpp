@@ -53,7 +53,7 @@ namespace UI
     {
         float H = 0.07f;       // text height (circle size scales with this)
         glm::vec2 center = {}; // NDC center for the circle
-        char value = '?';      // e.g., 'F','M','N' or 'L','M','H'
+        char value = '?';
         bool selected = false;
 
         Rect hit_rect() const // sus//??
@@ -84,7 +84,7 @@ namespace UI
     struct RadioButtons
     {
         std::vector<RadioButton> items;
-        bool allow_deselect = false; // true for gender; false for pitch/speed
+        // bool allow_deselect = false; // true for gender; false for pitch/speed
 
         // Returns currently-selected index or -1 if none:
         int selected_index() const
@@ -123,28 +123,8 @@ namespace UI
                 if (rb.hit(ndc))
                 {
                     printf("rb::click: hit item %d (value '%c')\n", i, rb.value);
-                    if (rb.selected)
+                    if (!rb.selected)
                     {
-                        if (allow_deselect)
-                        {
-                            rb.selected = false; // toggle off
-                            if (out_new_value)
-                                *out_new_value = '\0';
-                            // ensure no others are selected
-                            for (int j = 0; j < (int)items.size(); ++j)
-                                if (j != i)
-                                    items[j].selected = false;
-                            return true;
-                        }
-                        else
-                        {
-                            // already selected in strict radio; no change
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        // exclusive select
                         for (auto &o : items)
                             o.selected = false;
                         rb.selected = true;
@@ -218,13 +198,13 @@ namespace VoiceUI
         auto create_radio_button = [&](float cx, float cy, char v)
         { UI::RadioButton r; r.H=H; r.center={cx,cy}; r.value=v; return r; };
 
-        L.gender.allow_deselect = true;
+        // L.gender.allow_deselect = false;
         L.gender.items = {create_radio_button(col_left, y_gender, 'F'), create_radio_button(col_mid, y_gender, 'M')};
 
-        L.pitch.allow_deselect = false;
+        // L.pitch.allow_deselect = false;
         L.pitch.items = {create_radio_button(col_left, y_pitch, 'L'), create_radio_button(col_mid, y_pitch, 'M'), create_radio_button(col_right, y_pitch, 'H')};
 
-        L.speed.allow_deselect = false;
+        // L.speed.allow_deselect = false;
         L.speed.items = {create_radio_button(col_left, y_speed, 'L'), create_radio_button(col_mid, y_speed, 'M'), create_radio_button(col_right, y_speed, 'H')};
 
         L.speak.H = H;

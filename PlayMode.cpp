@@ -35,10 +35,8 @@ static char to_char_gender(Fan::Gender g)
 	{
 	case Fan::Gender::F:
 		return 'F';
-	case Fan::Gender::M:
-		return 'M';
 	default:
-		return 'N';
+		return 'M';
 	}
 }
 static char to_char_pitch(Fan::Pitch p)
@@ -117,23 +115,24 @@ Load<Scene> parrot_scene(LoadTagDefault, []() -> Scene const *
 
 PlayMode::PlayMode() : scene(*parrot_scene)
 {
-	for (auto &transform : scene.transforms)
+	for (auto &transform : scene.transforms) // Credit: imitate starter code
 	{
 		if (transform.name == "Parrot")
 			Parrot = &transform;
 		else if (transform.name == "FMM")
 			FMM = &transform;
-		else if (transform.name == "MML")
-			MML = &transform;
+		else if (transform.name == "MLH")
+			MLH = &transform;
 	}
 	if (Parrot == nullptr)
 		throw std::runtime_error("Parrot not found.");
 	if (FMM == nullptr)
 		throw std::runtime_error("FMM not found.");
-	if (MML == nullptr)
-		throw std::runtime_error("MML not found.");
+	if (MLH == nullptr)
+		throw std::runtime_error("MLH not found.");
 
-	// get pointer to camera for convenience:
+	
+		// get pointer to camera for convenience:
 	if (scene.cameras.size() != 1)
 		throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
@@ -145,24 +144,16 @@ PlayMode::PlayMode() : scene(*parrot_scene)
 	fan_FMM.voice = "Aria";
 	fan_FMM.transform = FMM;
 
-	// base / wait / gone positions (local space)
-	// fan_base_pos = FMM->position;
-	if (MML)
-		MML->position = fan_wait_pos; // park next fan in the queue
-
-	// next fan (MML)
-	if (MML)
-	{
-		fan_MML.name = "MML";
-		fan_MML.gender = Fan::Gender::M;
-		fan_MML.pitch = Fan::Pitch::M;
-		fan_MML.speed = Fan::Speed::L;
-		fan_MML.voice = "Andrew";
-		fan_MML.transform = MML;
-	}
+	MLH->position = fan_wait_pos;
+	fan_MLH.name = "MLH";
+	fan_MLH.gender = Fan::Gender::M;
+	fan_MLH.pitch = Fan::Pitch::L;
+	fan_MLH.speed = Fan::Speed::H;
+	fan_MLH.voice = "Andrew";
+	fan_MLH.transform = MLH;
 
 	current_fan = &fan_FMM;
-	next_fan    = (MML ? &fan_MML : nullptr);
+	next_fan = (MLH ? &fan_MLH : nullptr);
 
 	// start music loop playing:
 	//  (note: position will be over-ridden in update())
@@ -201,13 +192,9 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 					{
 						ui.gender = Fan::Gender::F;
 					}
-					else if (newv == 'M')
-					{
-						ui.gender = Fan::Gender::M;
-					}
 					else
 					{
-						ui.gender = Fan::Gender::N;
+						ui.gender = Fan::Gender::M;
 					}
 					return true;
 				}
@@ -285,20 +272,26 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				match_pitch = p_ok ? Match::Hit : Match::Miss;
 				match_speed = s_ok ? Match::Hit : Match::Miss;
 
-				// Only proceed to next fan if ALL match:
-				if (g_ok && p_ok && s_ok && next_fan && swap_phase == SwapPhase::Idle)
+				// Only proceed if all match:
+				if (g_ok && p_ok && s_ok)
 				{
-					swap_phase = SwapPhase::Wait;
-					swap_timer = 1.0f; // 1s, as requested
-					printf("All matched. Swap: waiting %.2fs before moving fans\n", swap_timer);
+					if (current_fan && current_fan->name == "MLH")
+					{
+						game_success = true;
+						printf("Game Success!\n");
+					}
+					else if (next_fan && swap_phase == SwapPhase::Idle)
+					{
+						swap_phase = SwapPhase::Wait;
+						swap_timer = 1.0f;
+						printf("All matched. Swap: waiting %.2fs before moving fans\n", swap_timer);
+					}
 				}
 				else
 				{
-					if (!(g_ok && p_ok && s_ok))
-					{
-						printf("Not all matched. Staying with current fan.\n");
-					}
+					printf("Not all matched. Staying with current fan.\n");
 				}
+
 				return true;
 			}
 
@@ -423,6 +416,8 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	
 	auto lay = VoiceUI::make_layout(aspect);
 
+	// Credit: used ChatGPT to determine the position and color to draw
+
 	// ---- top-right labels for Gender / Pitch / Speed ----
 	auto color_for = [&](Match m) -> glm::u8vec4
 	{
@@ -439,7 +434,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 	{
 		const float H = VoiceUI::UI_H();
-		const float x0 = VoiceUI::get_x0(aspect); // keep your symbol name
+		const float x0 = VoiceUI::get_x0(aspect);
 		const float yG = VoiceUI::row_y(0);
 		const float yP = VoiceUI::row_y(1);
 		const float yS = VoiceUI::row_y(2);
@@ -496,6 +491,17 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		// left/lower Listen button:
 		lay.listen.draw(lines, drawable_size);
 	}
+
+	if (game_success)
+	{
+		const float H = 0.12f;
+		glm::vec3 X(H, 0, 0), Y(0, H, 0);
+		glm::u8vec4 shadow(0, 0, 0, 0xff), mainc(0xff, 0xff, 0x66, 0xff);
+		float ofs = 2.0f / drawable_size.y;
+		lines.draw_text("Game Success!", glm::vec3(-2.0f * H, +0.1f, 0.0f), X, Y, shadow);
+		lines.draw_text("Game Success!", glm::vec3(-2.0f * H + ofs, +0.1f + ofs, 0.0f), X, Y, mainc);
+	}
+
 	GL_ERRORS();
 }
 
