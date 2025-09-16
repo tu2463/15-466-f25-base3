@@ -256,8 +256,10 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			// speak
 			if (lay.speak.hit(ndc))
 			{
-				std::string q = current_quality_from_ui();
-				std::string key = q + "_" + current_fan->voice;
+				std::string q = current_quality_from_ui();		// e.g., "FMM"
+				std::string key = q + "_" + current_fan->voice; // e.g., "FMM_Aria"
+				printf("Speak clicked -> quality='%s' voice='%s' key='%s'\n",
+					   q.c_str(), current_fan->voice.c_str(), key.c_str());
 
 				// play imitation from the Parrot:
 				auto *samp = get_sample_for(key);
@@ -265,10 +267,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				glm::vec3 parrot_pos = pxf[3];
 				Sound::play_3D(*samp, 1.0f, parrot_pos, 3.0f);
 
-				// --- scoring: +100 for each matching category ---
-				int gained = 0;
-
-				// print letters so you can see the comparison at a glance:
+				// ---- check each quality; set per-line match states (no scoring) ----
 				char g_ui = to_char_gender(ui.gender);
 				char p_ui = to_char_pitch(ui.pitch);
 				char s_ui = to_char_speed(ui.speed);
@@ -276,47 +275,30 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				char p_fan = to_char_pitch(current_fan->pitch);
 				char s_fan = to_char_speed(current_fan->speed);
 
-				printf("Scoring: UI=%c%c%c  Fan=%c%c%c\n", g_ui, p_ui, s_ui, g_fan, p_fan, s_fan);
+				printf("Check: UI=%c%c%c  Fan=%c%c%c\n", g_ui, p_ui, s_ui, g_fan, p_fan, s_fan);
 
-				if (ui.gender == current_fan->gender)
-				{
-					gained += 100;
-					// printf("  match: gender (%c==%c)\n", g_ui, g_fan);
-				}
-				else
-				{
-					// printf("  no match: gender (%c!=%c)\n", g_ui, g_fan);
-				}
-				if (ui.pitch == current_fan->pitch)
-				{
-					gained += 100;
-					// printf("  match: pitch  (%c==%c)\n", p_ui, p_fan);
-				}
-				else
-				{
-					// printf("  no match: pitch  (%c!=%c)\n", p_ui, p_fan);
-				}
-				if (ui.speed == current_fan->speed)
-				{
-					gained += 100;
-					// printf("  match: speed  (%c==%c)\n", s_ui, s_fan);
-				}
-				else
-				{
-					// printf("  no match: speed  (%c!=%c)\n", s_ui, s_fan);
-				}
+				bool g_ok = (ui.gender == current_fan->gender);
+				bool p_ok = (ui.pitch == current_fan->pitch);
+				bool s_ok = (ui.speed == current_fan->speed);
 
-				score += gained;
-				printf("  gained=%d  total score=%d\n", gained, score);
+				match_gender = g_ok ? Match::Hit : Match::Miss;
+				match_pitch = p_ok ? Match::Hit : Match::Miss;
+				match_speed = s_ok ? Match::Hit : Match::Miss;
 
-				// after scoring, start 1s wait then swap FMM->gone and MML->base:
-				if (next_fan && swap_phase == SwapPhase::Idle)
+				// Only proceed to next fan if ALL match:
+				if (g_ok && p_ok && s_ok && next_fan && swap_phase == SwapPhase::Idle)
 				{
 					swap_phase = SwapPhase::Wait;
-					swap_timer = 1.5f;
-					printf("Swap: waiting %.2fs before moving fans\n", swap_timer);
+					swap_timer = 1.0f; // 1s, as requested
+					printf("All matched. Swap: waiting %.2fs before moving fans\n", swap_timer);
 				}
-
+				else
+				{
+					if (!(g_ok && p_ok && s_ok))
+					{
+						printf("Not all matched. Staying with current fan.\n");
+					}
+				}
 				return true;
 			}
 
@@ -362,6 +344,13 @@ void PlayMode::update(float elapsed)
         if (a_done && b_done) {
             // switch current/next
             current_fan = next_fan;
+
+			// reset line colors
+			match_gender = Match::Unknown;
+			match_pitch  = Match::Unknown;
+			match_speed  = Match::Unknown;
+
+			next_fan = nullptr;
 
             // after movement, autoplay the new fan's voice from their world position:
             if (current_fan) {
@@ -435,41 +424,57 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	auto lay = VoiceUI::make_layout(aspect);
 
 	// ---- top-right labels for Gender / Pitch / Speed ----
+	auto color_for = [&](Match m) -> glm::u8vec4
+	{
+		switch (m)
+		{
+		case Match::Hit:
+			return glm::u8vec4(0x66, 0xff, 0x66, 0xff); // green
+		case Match::Miss:
+			return glm::u8vec4(0xff, 0x66, 0x66, 0xff); // red
+		default:
+			return glm::u8vec4(0xff, 0xff, 0xff, 0xff); // white
+		}
+	};
+
 	{
 		const float H = VoiceUI::UI_H();
-		const float x0 = VoiceUI::get_x0(aspect);
-		const float y_gender = VoiceUI::row_y(0);
-		const float y_pitch = VoiceUI::row_y(1);
-		const float y_speed = VoiceUI::row_y(2);
+		const float x0 = VoiceUI::get_x0(aspect); // keep your symbol name
+		const float yG = VoiceUI::row_y(0);
+		const float yP = VoiceUI::row_y(1);
+		const float yS = VoiceUI::row_y(2);
 
-		glm::vec3 X(H, 0.0f, 0.0f), Y(0.0f, H, 0.0f);
-		glm::u8vec4 shadow(0x00, 0x00, 0x00, 0xff), mainc(0xff, 0xff, 0xff, 0xff);
-		auto draw_label = [&](std::string const &s, float x, float y)
+		glm::vec3 X(H, 0, 0), Y(0, H, 0);
+		glm::u8vec4 shadow(0, 0, 0, 0xff);
+
+		auto draw_label_col = [&](std::string const &s, float x, float y, glm::u8vec4 col)
 		{
 			float ofs = 2.0f / drawable_size.y;
 			lines.draw_text(s, glm::vec3(x, y, 0.0f), X, Y, shadow);
-			lines.draw_text(s, glm::vec3(x + ofs, y + ofs, 0.0f), X, Y, mainc);
+			lines.draw_text(s, glm::vec3(x + ofs, y + ofs, 0.0f), X, Y, col);
 		};
 
+		// colors per line based on last Speak result:
+		auto cG = color_for(match_gender);
+		auto cP = color_for(match_pitch);
+		auto cS = color_for(match_speed);
+
 		// Row headers:
-		draw_label("Gender:", x0, y_gender);
-		draw_label("Pitch:", x0, y_pitch);
-		draw_label("Speed:", x0, y_speed);
+		draw_label_col("Gender:", x0, yG, cG);
+		draw_label_col("Pitch:", x0, yP, cP);
+		draw_label_col("Speed:", x0, yS, cS);
 
-		// Option labels placed just to the left of each radio circle:
-		// Gender F/M:
-		draw_label("F:", lay.gender.items[0].center.x - 2.0f * H, y_gender);
-		draw_label("M:", lay.gender.items[1].center.x - 2.0f * H, y_gender);
+		// Option labels beside each radio circle (use same row color):
+		draw_label_col("F:", lay.gender.items[0].center.x - 2.0f * H, yG, cG);
+		draw_label_col("M:", lay.gender.items[1].center.x - 2.0f * H, yG, cG);
 
-		// Pitch L/M/H:
-		draw_label("L:", lay.pitch.items[0].center.x - 2.0f * H, y_pitch);
-		draw_label("M:", lay.pitch.items[1].center.x - 2.0f * H, y_pitch);
-		draw_label("H:", lay.pitch.items[2].center.x - 2.0f * H, y_pitch);
+		draw_label_col("L:", lay.pitch.items[0].center.x - 2.0f * H, yP, cP);
+		draw_label_col("M:", lay.pitch.items[1].center.x - 2.0f * H, yP, cP);
+		draw_label_col("H:", lay.pitch.items[2].center.x - 2.0f * H, yP, cP);
 
-		// Speed L/M/H:
-		draw_label("L:", lay.speed.items[0].center.x - 2.0f * H, y_speed);
-		draw_label("M:", lay.speed.items[1].center.x - 2.0f * H, y_speed);
-		draw_label("H:", lay.speed.items[2].center.x - 2.0f * H, y_speed);
+		draw_label_col("L:", lay.speed.items[0].center.x - 2.0f * H, yS, cS);
+		draw_label_col("M:", lay.speed.items[1].center.x - 2.0f * H, yS, cS);
+		draw_label_col("H:", lay.speed.items[2].center.x - 2.0f * H, yS, cS);
 	}
 
 	{
@@ -491,23 +496,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 		// left/lower Listen button:
 		lay.listen.draw(lines, drawable_size);
 	}
-
-	{
-		const float H = 0.09f;
-		glm::vec3 X(H,0,0), Y(0,H,0);
-		glm::u8vec4 shadow(0,0,0,0xff), mainc(0xff,0xff,0xff,0xff);
-		float aspect = float(drawable_size.x) / float(drawable_size.y);
-		float x = -aspect + 0.8f * H;
-		float y = +1.0f   - 0.8f * H;
-
-		char buf[64];
-		snprintf(buf, sizeof(buf), "Score: %d", score);
-
-		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text(buf, glm::vec3(x, y, 0.0f), X, Y, shadow);
-		lines.draw_text(buf, glm::vec3(x+ofs, y+ofs, 0.0f), X, Y, mainc);
-	}
-
 	GL_ERRORS();
 }
 

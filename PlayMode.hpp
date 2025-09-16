@@ -14,8 +14,6 @@ struct PlayMode : Mode {
 	PlayMode();
 	virtual ~PlayMode();
 
-	int score = 0;
-
 	//functions called by main loop:
 	virtual bool handle_event(SDL_Event const &, glm::uvec2 const &window_size) override;
 	virtual void update(float elapsed) override;
@@ -58,6 +56,12 @@ struct PlayMode : Mode {
 
 	float swap_timer = 0.0f;      // counts down from 1.0s after Speak
 	float move_speed = 6.0f;      // units / second
+
+	// PlayMode.hpp (inside PlayMode)
+	enum class Match { Unknown, Hit, Miss };
+	Match match_gender = Match::Unknown;
+	Match match_pitch  = Match::Unknown;
+	Match match_speed  = Match::Unknown;
 
 	// --- audio sample cache ---
 	std::unordered_map<std::string, std::unique_ptr<Sound::Sample>> sample_cache;
