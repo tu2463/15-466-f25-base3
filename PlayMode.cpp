@@ -79,6 +79,7 @@ static glm::vec2 mouse_px_to_ndc(glm::vec2 mouse_px, glm::uvec2 wnd)
 	return glm::vec2(x_ndc, y_ndc);
 }
 
+// Load the mesh data from scene
 GLuint parrot_meshes_for_lit_color_texture_program = 0;
 Load<MeshBuffer> parrot_meshes(LoadTagDefault, []() -> MeshBuffer const *
 							   {
@@ -101,13 +102,6 @@ Load<Scene> parrot_scene(LoadTagDefault, []() -> Scene const *
 												drawable.pipeline.start = mesh.start;
 												drawable.pipeline.count = mesh.count; }); });
 
-// Load< Sound::Sample > dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const * {
-// 	return new Sound::Sample(data_path("dusty-floor.opus"));
-// });
-
-// Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
-// 								{ return new Sound::Sample(data_path("honk.wav")); });
-
 PlayMode::PlayMode() : scene(*parrot_scene)
 {
 	for (auto &transform : scene.transforms) // Credit: imitate starter code
@@ -126,8 +120,6 @@ PlayMode::PlayMode() : scene(*parrot_scene)
 	if (MLH == nullptr)
 		throw std::runtime_error("MLH not found.");
 
-	
-		// get pointer to camera for convenience:
 	if (scene.cameras.size() != 1)
 		throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
@@ -170,6 +162,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 		if (evt.button.button == SDL_BUTTON_LEFT)
 		{
+			// Credit: used ChatGPT to help determine whether a button was clicked
 			float aspect = float(window_size.x) / float(window_size.y);
 			glm::vec2 ndc = mouse_px_to_ndc(mouse_px, window_size);
 			// printf(" -> ndc %f,%f\n", ndc.x, ndc.y);
@@ -308,7 +301,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
-	// --- swap state machine ---
+	// Credit: used ChatGPT to help with animation
     if (swap_phase == SwapPhase::Wait) {
         swap_timer -= elapsed;
         if (swap_timer <= 0.0f) {
@@ -352,26 +345,6 @@ void PlayMode::update(float elapsed)
             swap_phase = SwapPhase::Idle; // ready for whatever's next
         }
     }
-
-	// //slowly rotates through [0,1):
-	// wobble += elapsed / 10.0f;
-	// wobble -= std::floor(wobble);
-
-	// hip->rotation = hip_base_rotation * glm::angleAxis(
-	// 	glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-	// 	glm::vec3(0.0f, 1.0f, 0.0f)
-	// );
-	// upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-	// 	glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-	// 	glm::vec3(0.0f, 0.0f, 1.0f)
-	// );
-	// lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-	// 	glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-	// 	glm::vec3(0.0f, 0.0f, 1.0f)
-	// );
-
-	// //move sound to follow leg tip position:
-	// leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
 
 	// reset button press counters:
 	left.downs = 0;
@@ -499,11 +472,6 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 
 	GL_ERRORS();
 }
-
-// glm::vec3 PlayMode::get_leg_tip_position() {
-// 	//the vertex position here was read from the model in blender:
-// 	return lower_leg->make_world_from_local() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
-// }
 
 glm::vec3 PlayMode::fan_world_position(Fan const &fan) const
 {
