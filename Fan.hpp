@@ -35,8 +35,8 @@ struct Fan
     std::string voice = ""; // e.g., "Aria"
     Scene::Transform *transform = nullptr;
 
-    // Credit: helpers built with ChatGPT assistance.
-    float click_radius = 0.6f;
+
+    float click_radius = 0.6f; // Credit: suggested by ChatGPT
     static char to_char(Gender g) { return (g == Gender::F ? 'F' : 'M'); }
     static char to_char(Pitch p) { return (p == Pitch::L ? 'L' : (p == Pitch::M ? 'M' : 'H')); }
     static char to_char(Speed s) { return (s == Speed::L ? 'L' : (s == Speed::M ? 'M' : 'H')); }

@@ -17,8 +17,8 @@
 #include <unordered_map>
 #include <cmath>
 
-namespace {
-    static bool move_towards(Scene::Transform *t, glm::vec3 target, float speed, float dt) {
+// Credit: used ChatGPT for creating helper functions
+static bool move_towards(Scene::Transform *t, glm::vec3 target, float speed, float dt) {
         if (!t) return true;
         glm::vec3 d = target - t->position;       // local-space move
         float dist2 = glm::dot(d, d);
@@ -27,7 +27,6 @@ namespace {
         t->position += (d / std::sqrt(dist2)) * step;
         return false;
     }
-}
 
 static char to_char_gender(Fan::Gender g)
 {
@@ -72,16 +71,12 @@ std::string PlayMode::current_quality_from_ui() const
 	return q; // e.g., "FMM"
 }
 
-namespace
+static glm::vec2 mouse_px_to_ndc(glm::vec2 mouse_px, glm::uvec2 wnd)
 {
-	// Keep your existing convert function:
-	static glm::vec2 mouse_px_to_ndc(glm::vec2 mouse_px, glm::uvec2 wnd)
-	{
-		float aspect = float(wnd.x) / float(wnd.y);
-		float x_ndc = -aspect + 2.0f * aspect * (mouse_px.x / float(wnd.x));
-		float y_ndc = +1.0f - 2.0f * (mouse_px.y / float(wnd.y));
-		return glm::vec2(x_ndc, y_ndc);
-	}
+	float aspect = float(wnd.x) / float(wnd.y);
+	float x_ndc = -aspect + 2.0f * aspect * (mouse_px.x / float(wnd.x));
+	float y_ndc = +1.0f - 2.0f * (mouse_px.y / float(wnd.y));
+	return glm::vec2(x_ndc, y_ndc);
 }
 
 GLuint parrot_meshes_for_lit_color_texture_program = 0;

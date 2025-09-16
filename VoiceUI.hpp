@@ -5,9 +5,7 @@
 #include <glm/glm.hpp>
 #include "DrawLines.hpp"
 
-// Lightweight UI primitives for NDC overlay (DrawLines space).
-// NDC here means x in [-aspect, +aspect], y in [-1, +1].
-
+// Credit: used ChatGPT for building the UI from my design of the labels, buttons, and states needed.
 namespace UI
 {
 
@@ -226,4 +224,4 @@ namespace VoiceUI
                                                                                              : 'H');
     }
 
-} // namespace VoiceUI
+}
