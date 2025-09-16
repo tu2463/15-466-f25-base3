@@ -87,6 +87,10 @@ Load<MeshBuffer> parrot_meshes(LoadTagDefault, []() -> MeshBuffer const *
 	parrot_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
 	return ret; });
 
+Load< Sound::Sample > bg_sample(LoadTagDefault, []() -> Sound::Sample const * {
+	return new Sound::Sample(data_path("bg.wav"));
+});
+
 Load<Scene> parrot_scene(LoadTagDefault, []() -> Scene const *
 						 { return new Scene(data_path("parrot.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
 											{
@@ -146,6 +150,8 @@ PlayMode::PlayMode() : scene(*parrot_scene)
 	//  (note: position will be over-ridden in update())
 	//  leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
 	//  bg_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
+
+	 bg_loop = Sound::loop_3D(*bg_sample, 1.0f, fan_base_pos, 3.0f);
 }
 
 PlayMode::~PlayMode()
